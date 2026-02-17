@@ -10,7 +10,7 @@ from aiogram.filters import StateFilter
 
 from logger import log_to_file
 from llm import chat
-from . import router, SYSTEM, get_history, typing_action
+from . import router, get_history, typing_action, get_system_prompt
 
 _albums: Dict[str, List[types.Message]] = {}
 _pending_photos: Dict[int, dict] = {}
@@ -55,8 +55,9 @@ async def _process(messages: List[types.Message], bot: Bot, text: Optional[str] 
                 log_text = f"[{len(messages)} фото] {text or ''}".strip()
             else:
                 content = log_text = text
-
-            answer = await chat(content=content, system=SYSTEM, history=list(history))
+                system_prompt = await get_system_prompt()  # ← свежее время и расписание при каждом запросе
+                print(system_prompt)
+                answer = await chat(content=content, system=system_prompt, history=list(history))
 
         history.append({"role": "user", "content": log_text})
         history.append({"role": "assistant", "content": answer})

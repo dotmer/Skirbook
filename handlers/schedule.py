@@ -28,8 +28,9 @@ async def cmd_schedule(message: types.Message, command: CommandObject):
         return
 
     # 3. Получаем расписание через локальную функцию
+    print(f"[SCHEDULE] class_id={class_id}, args='{command.args}'")
     day_name, schedule = await get_schedule(class_id, command.args)
-    print(day_name, schedule)
+    print(f"[SCHEDULE] day='{day_name}', schedule={schedule}")
     
     if day_name is None:
         await message.answer(

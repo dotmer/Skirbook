@@ -1,26 +1,18 @@
 from db import get_schedule_for_day
 from utils.day_normal import get_day
 async def get_schedule(class_id: int, day_name: str) -> tuple[str, list]:
-    """
-    Локальная функция для получения расписания по названию дня недели
-    
-    Returns:
-        tuple: (день_недели_текст, список_уроков)
-    """
     result = get_day(day_name.lower())
-    print(day_name)
-    print(result)
 
     if result is None:
         print(f"Ошибка: Не удалось распознать день недели '{day_name}'")
-        return
+        return None, []  # ← тоже исправьте: было просто return без значения
     
     day_index, full_name = result
 
     if day_index is None:
         return None, []
     
-    schedule = await get_schedule_for_day(class_id, day_index)
+    schedule = await get_schedule_for_day(class_id, full_name)  # ← full_name вместо day_index
     return full_name, schedule
 
 def format_schedule_message(day_name: str, schedule: list) -> str:
