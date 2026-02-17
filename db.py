@@ -1,6 +1,8 @@
 import aiosqlite
+import os
 
 DB_NAME = 'databases/school.db'
+os.makedirs(os.path.dirname(DB_NAME), exist_ok=True)
 
 # Маппинг строковых названий дней в числа
 DAY_NAME_TO_NUMBER = {
