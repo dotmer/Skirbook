@@ -59,16 +59,18 @@ async def create_tables():
         room TEXT,
         UNIQUE(class_id, day_of_week, lesson_number)
         )        
-''')
+        ''')
         await db.execute('''
-        CREATE TABLE IF NOT EXISTS homework (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        class_id INTEGER,
-        subject_name TEXT,
-        task_text TEXT,
-        for_date DATE
-                         )
-''')
+            CREATE TABLE IF NOT EXISTS homework (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                class_id INTEGER,
+                subject_name TEXT,
+                task_text TEXT,
+                for_date TEXT,
+                UNIQUE(class_id, subject_name, for_date)
+            )
+        ''')
+        
         
         # Очистка старого расписания для 1 класса (10А), чтобы не дублировалось при перезапуске
         await db.execute("DELETE FROM schedule WHERE class_id = 1")
@@ -231,6 +233,88 @@ async def delete_lesson(class_id, day, les_number):
         WHERE class_id = ? AND day_of_week = ? AND lesson_number = ?
 ''', (class_id, day_num, les_number))
         await db.commit()
+
+
+#---------------------- HOMEWORK ----------------------
+
+async def add_homework(class_id: int, subject_name: str, task_text: str, for_date: str):
+    """
+    Добавляет/обновляет ДЗ по предмету на дату.
+    for_date — формат 'DD.MM' или 'YYYY-MM-DD', хранится как есть.
+    """
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            """INSERT INTO homework (class_id, subject_name, task_text, for_date)
+               VALUES (?, ?, ?, ?)
+               ON CONFLICT(class_id, subject_name, for_date)
+               DO UPDATE SET task_text = excluded.task_text""",
+            (class_id, subject_name, task_text, for_date)
+        )
+        await db.commit()
+
+async def add_homework_safe(class_id: int, subject_name: str, task_text: str, for_date: str) -> str:
+    """Добавляет ДЗ с проверкой что предмет есть в расписании на этот день."""
+    from datetime import datetime
+
+    # Определяем день недели по дате
+    day, month = map(int, for_date.split("."))
+    year = datetime.now().year
+    date_obj = datetime(year, month, day)
+    day_num = date_obj.isoweekday()
+
+    # Проверяем расписание
+    schedule = await get_schedule_for_day(class_id, day_num)
+    if schedule:
+        subjects_today = [subj.lower() for _, subj, _, _ in schedule]
+        if subject_name.lower() not in subjects_today:
+            day_names = {1:'пн',2:'вт',3:'ср',4:'чт',5:'пт',6:'сб',7:'вс'}
+            return f"⚠️ Предмета «{subject_name}» нет в расписании на {day_names[day_num]} ({for_date})"
+
+    await add_homework(class_id, subject_name, task_text, for_date)
+    return None  # None = успех
+
+
+async def get_homework_by_date(class_id: int, for_date: str):
+    """Все ДЗ класса на дату. Возвращает [(subject_name, task_text), ...]"""
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute(
+            "SELECT subject_name, task_text FROM homework WHERE class_id = ? AND for_date = ?",
+            (class_id, for_date)
+        ) as cursor:
+            return await cursor.fetchall()
+
+
+async def get_homework_by_subject_and_date(class_id: int, subject_name: str, for_date: str):
+    """ДЗ по конкретному предмету на дату."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        async with db.execute(
+            "SELECT task_text FROM homework WHERE class_id = ? AND subject_name = ? AND for_date = ?",
+            (class_id, subject_name, for_date)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row[0] if row else None
+
+
+async def delete_homework(class_id: int, subject_name: str, for_date: str):
+    """Удаляет ДЗ по предмету на дату."""
+    async with aiosqlite.connect(DB_NAME) as db:
+        await db.execute(
+            "DELETE FROM homework WHERE class_id = ? AND subject_name = ? AND for_date = ?",
+            (class_id, subject_name, for_date)
+        )
+        await db.commit()
+
+
+async def get_homework_formatted(class_id: int, for_date: str) -> str:
+    """Красивый вывод всех ДЗ на дату."""
+    rows = await get_homework_by_date(class_id, for_date)
+    if not rows:
+        return f"На {for_date} ничего не задано 🎉"
+
+    lines = [f"📅 ДЗ на {for_date}:\n"]
+    for subject, task in rows:
+        lines.append(f"📚 {subject} — {task}")
+    return "\n".join(lines)
 
 #---------------------- UTILITY ----------------------
 

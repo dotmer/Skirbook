@@ -21,31 +21,41 @@ WEEKDAYS = [
 
 async def get_system_prompt() -> str:
     """
-    Генерирует системный промпт с АКТУАЛЬНЫМИ датой, временем и расписанием.
+    Генерирует системный промпт с АКТУАЛЬНЫМИ датой, временем, расписанием и домашкой.
     """
     now = datetime.now()
     current_day = now.weekday()
-    day_name = WEEKDAYS[current_day]  # int → "Понедельник", "Вторник" и т.д.
+    day_name = WEEKDAYS[current_day]
 
     date_str = now.strftime("%d.%m.%Y")
     time_str = now.strftime("%H:%M")
 
-    # Передаём строку дня, а не int
-    full_name, schedule_today = await get_schedule(1, day_name)
+    # Получаем расписание и домашку
+    full_name, schedule_today, homework_today = await get_schedule(1, day_name)
 
-    # Форматируем расписание в читаемый текст
+    # Форматируем расписание
     if schedule_today:
         schedule_text = "\n".join(
             f"  {i}. {lesson}" for i, lesson in enumerate(schedule_today, 1)
         )
     else:
-        schedule_text = "Нет расписания (выходной или ошибка)"
+        schedule_text = "  No Lessons"
+
+    # Форматируем домашнее задание
+    # homework_today: [(subject_name, task_text), ...] или None
+    if homework_today:
+        homework_text = "\n".join(
+            f"  • {subject}: {task}" for subject, task in homework_today
+        )
+    else:
+        homework_text = "  No Homework"
 
     context_block = (
-        f"\n\n--- Текущая информация ---\n"
-        f"Дата: {date_str} ({day_name})\n"
-        f"Текущее время: {time_str}\n"
-        f"Расписание на сегодня:\n{schedule_text}"
+        f"\n\n--- Current Context ---\n"
+        f"Date: {date_str} ({day_name})\n"
+        f"Time: {time_str}\n"
+        f"\nSchedule for today:\n{schedule_text}\n"
+        f"\nHomework for today:\n{homework_text}"
     )
 
     return _BASE_SYSTEM + context_block
