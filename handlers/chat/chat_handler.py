@@ -42,10 +42,12 @@ async def _process(messages: List[types.Message], bot: Bot, text: Optional[str] 
 
     try:
         async with typing_action(bot, msg.chat.id):
+            system_prompt = await get_system_prompt()
+
             if is_photo:
                 photos = [_get_optimal_photo(m) for m in messages]
                 b64_images = await asyncio.gather(*[_download_photo(bot, p) for p in photos])
-                
+
                 content = [{"type": "text", "text": text or "Что на изображении?"}]
                 for b64 in b64_images:
                     content.append({
@@ -55,19 +57,18 @@ async def _process(messages: List[types.Message], bot: Bot, text: Optional[str] 
                 log_text = f"[{len(messages)} фото] {text or ''}".strip()
             else:
                 content = log_text = text
-                system_prompt = await get_system_prompt()  # ← свежее время и расписание при каждом запросе
-                print(system_prompt)
-                answer = await chat(content=content, system=system_prompt, history=list(history))
+
+            print(system_prompt)
+            answer = await chat(content=content, system=system_prompt, history=list(history))
 
         history.append({"role": "user", "content": log_text})
         history.append({"role": "assistant", "content": answer})
         await log_to_file(user_id, "user", log_text)
         await log_to_file(user_id, "skirbook", answer)
-        
+
         try:
             await msg.answer(answer, parse_mode="HTML")
         except Exception:
-            # Очищаем от HTML-тегов и отправляем как plain text
             clean_answer = re.sub(r'<[^>]+>', '', answer)
             await msg.answer(clean_answer)
 
